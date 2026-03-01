@@ -1,0 +1,11 @@
+
+###> symfony/framework-bundle ###
+/var/
+/vendor/
+###< symfony/framework-bundle ###
+
+.env
+AGENTS.md
+.idea
+/public/.htaccess
+/migrations/
