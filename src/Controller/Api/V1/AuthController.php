@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace App\Controller\Api\V1;
 
+use App\DTO\Auth\ChangePasswordRequest;
 use App\DTO\Auth\ForgotPasswordRequest;
 use App\DTO\Auth\LoginRequest;
 use App\DTO\Auth\RegisterRequest;
 use App\DTO\Auth\ResendVerificationRequest;
 use App\DTO\Auth\ResetPasswordRequest;
+use App\DTO\Auth\UpdateProfileRequest;
 use App\DTO\Auth\VerifyEmailRequest;
 use App\Service\AuthService;
 use App\Service\RequestService;
@@ -185,6 +187,73 @@ class AuthController extends AbstractController
                 'isEmailVerified' => $user->isEmailVerified(),
             ],
         ]);
+    }
+
+    #[Route('/auth/profile', name: 'api_v1_update_profile', methods: ['PUT'])]
+    public function updateProfile(Request $request): JsonResponse
+    {
+        $user = $this->getAuthenticatedUser($request);
+
+        if ($user === null) {
+            return $this->json([
+                'success' => false,
+                'error' => 'Unauthorized',
+            ], Response::HTTP_UNAUTHORIZED);
+        }
+
+        $data = $this->requestService->getJsonData($request);
+        $dto = $this->requestService->createValidatedDto(UpdateProfileRequest::class, $data);
+
+        $userData = $this->authService->updateProfile($user, $dto);
+
+        return $this->json([
+            'success' => true,
+            'data' => $userData,
+            'message' => 'Profile updated successfully',
+        ]);
+    }
+
+    #[Route('/auth/change-password', name: 'api_v1_change_password', methods: ['POST'])]
+    public function changePassword(Request $request): JsonResponse
+    {
+        $user = $this->getAuthenticatedUser($request);
+
+        if ($user === null) {
+            return $this->json([
+                'success' => false,
+                'error' => 'Unauthorized',
+            ], Response::HTTP_UNAUTHORIZED);
+        }
+
+        $data = $this->requestService->getJsonData($request);
+        $dto = $this->requestService->createValidatedDto(ChangePasswordRequest::class, $data);
+
+        $success = $this->authService->changePassword($user, $dto);
+
+        if (!$success) {
+            return $this->json([
+                'success' => false,
+                'error' => 'Неверный текущий пароль',
+            ], Response::HTTP_BAD_REQUEST);
+        }
+
+        return $this->json([
+            'success' => true,
+            'message' => 'Password changed successfully',
+        ]);
+    }
+
+    private function getAuthenticatedUser(Request $request): ?\App\Entity\User
+    {
+        $authHeader = $request->headers->get('Authorization');
+
+        if (!$authHeader || !str_starts_with($authHeader, 'Bearer ')) {
+            return null;
+        }
+
+        $token = substr($authHeader, 7);
+
+        return $this->authService->getUserFromToken($token);
     }
 
     #[Route('/auth/verify-email', name: 'api_v1_verify_email', methods: ['POST'])]
