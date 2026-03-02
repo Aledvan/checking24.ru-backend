@@ -6,8 +6,10 @@ namespace App\Service;
 
 use App\Entity\Incident;
 use App\Entity\Site;
+use App\Entity\SiteCheck;
 use App\Entity\Warning;
 use App\Repository\IncidentRepository;
+use App\Repository\SiteCheckRepository;
 use App\Repository\SiteRepository;
 use App\Repository\WarningRepository;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
@@ -22,6 +24,7 @@ class SiteCheckerService
         private readonly SiteRepository $siteRepository,
         private readonly IncidentRepository $incidentRepository,
         private readonly WarningRepository $warningRepository,
+        private readonly SiteCheckRepository $siteCheckRepository,
         private readonly HttpClientInterface $httpClient,
     ) {
     }
@@ -54,6 +57,9 @@ class SiteCheckerService
 
         $responseTime = (int) ((microtime(true) - $startTime) * 1000);
 
+        // Determine if site is up
+        $isUp = $httpCode >= 200 && $httpCode < 400;
+
         // Update site metrics
         $site->setHttpStatusCode($httpCode);
         $site->setResponseTime($responseTime);
@@ -65,7 +71,10 @@ class SiteCheckerService
         $site->setStatus($newStatus);
 
         // Update uptime
-        $this->updateUptime($site, $httpCode >= 200 && $httpCode < 400);
+        $this->updateUptime($site, $isUp);
+
+        // Save check history
+        $this->saveCheckHistory($site, $isUp, $responseTime, $httpCode, $errorMessage);
 
         // Handle incidents
         $this->handleIncident($site, $previousStatus, $newStatus, $httpCode, $errorMessage);
@@ -77,6 +86,30 @@ class SiteCheckerService
         $this->checkWarnings($site);
 
         $this->siteRepository->save($site, true);
+    }
+
+    /**
+     * Saves check result to history.
+     *
+     * @param Site $site Site entity
+     * @param bool $isUp Whether site is up
+     * @param int $responseTime Response time in ms
+     * @param int $httpCode HTTP status code
+     * @param string|null $errorMessage Error message
+     *
+     * @return void
+     */
+    private function saveCheckHistory(Site $site, bool $isUp, int $responseTime, int $httpCode, ?string $errorMessage): void
+    {
+        $siteCheck = new SiteCheck();
+        $siteCheck->setSite($site);
+        $siteCheck->setIsUp($isUp);
+        $siteCheck->setResponseTime($responseTime);
+        $siteCheck->setHttpStatusCode($httpCode > 0 ? $httpCode : null);
+        $siteCheck->setErrorMessage($errorMessage);
+        $siteCheck->setCheckedAt(new \DateTimeImmutable());
+
+        $this->siteCheckRepository->save($siteCheck, true);
     }
 
     /**
