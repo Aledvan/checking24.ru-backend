@@ -32,6 +32,21 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(type: Types::JSON)]
     private array $roles = [];
 
+    #[ORM\Column(type: Types::BOOLEAN)]
+    private bool $isEmailVerified = false;
+
+    #[ORM\Column(type: Types::STRING, length: 64, nullable: true)]
+    private ?string $emailVerificationToken = null;
+
+    #[ORM\Column(type: Types::DATETIME_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $emailVerificationTokenExpiresAt = null;
+
+    #[ORM\Column(type: Types::STRING, length: 64, nullable: true)]
+    private ?string $passwordResetToken = null;
+
+    #[ORM\Column(type: Types::DATETIME_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $passwordResetTokenExpiresAt = null;
+
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
     private \DateTimeImmutable $createdAt;
 
@@ -43,33 +58,16 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         $this->createdAt = new \DateTimeImmutable();
     }
 
-    /**
-     * Returns user ID.
-     *
-     * @return int|null
-     */
     public function getId(): ?int
     {
         return $this->id;
     }
 
-    /**
-     * Returns user email.
-     *
-     * @return string
-     */
     public function getEmail(): string
     {
         return $this->email;
     }
 
-    /**
-     * Sets user email.
-     *
-     * @param string $email User email
-     *
-     * @return self
-     */
     public function setEmail(string $email): self
     {
         $this->email = $email;
@@ -77,23 +75,11 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this;
     }
 
-    /**
-     * Returns password hash.
-     *
-     * @return string
-     */
     public function getPassword(): string
     {
         return $this->password;
     }
 
-    /**
-     * Sets password hash.
-     *
-     * @param string $password Password hash
-     *
-     * @return self
-     */
     public function setPassword(string $password): self
     {
         $this->password = $password;
@@ -101,23 +87,11 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this;
     }
 
-    /**
-     * Returns user name.
-     *
-     * @return string|null
-     */
     public function getName(): ?string
     {
         return $this->name;
     }
 
-    /**
-     * Sets user name.
-     *
-     * @param string|null $name User name
-     *
-     * @return self
-     */
     public function setName(?string $name): self
     {
         $this->name = $name;
@@ -125,11 +99,6 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this;
     }
 
-    /**
-     * Returns user roles.
-     *
-     * @return list<string>
-     */
     public function getRoles(): array
     {
         $roles = $this->roles;
@@ -138,13 +107,6 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return array_unique($roles);
     }
 
-    /**
-     * Sets user roles.
-     *
-     * @param list<string> $roles User roles
-     *
-     * @return self
-     */
     public function setRoles(array $roles): self
     {
         $this->roles = $roles;
@@ -152,46 +114,133 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this;
     }
 
-    /**
-     * Returns creation date.
-     *
-     * @return \DateTimeImmutable
-     */
+    public function isEmailVerified(): bool
+    {
+        return $this->isEmailVerified;
+    }
+
+    public function setIsEmailVerified(bool $isEmailVerified): self
+    {
+        $this->isEmailVerified = $isEmailVerified;
+
+        return $this;
+    }
+
+    public function getEmailVerificationToken(): ?string
+    {
+        return $this->emailVerificationToken;
+    }
+
+    public function setEmailVerificationToken(?string $token): self
+    {
+        $this->emailVerificationToken = $token;
+
+        return $this;
+    }
+
+    public function getEmailVerificationTokenExpiresAt(): ?\DateTimeImmutable
+    {
+        return $this->emailVerificationTokenExpiresAt;
+    }
+
+    public function setEmailVerificationTokenExpiresAt(?\DateTimeImmutable $expiresAt): self
+    {
+        $this->emailVerificationTokenExpiresAt = $expiresAt;
+
+        return $this;
+    }
+
+    public function isEmailVerificationTokenValid(): bool
+    {
+        if ($this->emailVerificationToken === null || $this->emailVerificationTokenExpiresAt === null) {
+            return false;
+        }
+
+        return $this->emailVerificationTokenExpiresAt > new \DateTimeImmutable();
+    }
+
+    public function getPasswordResetToken(): ?string
+    {
+        return $this->passwordResetToken;
+    }
+
+    public function setPasswordResetToken(?string $token): self
+    {
+        $this->passwordResetToken = $token;
+
+        return $this;
+    }
+
+    public function getPasswordResetTokenExpiresAt(): ?\DateTimeImmutable
+    {
+        return $this->passwordResetTokenExpiresAt;
+    }
+
+    public function setPasswordResetTokenExpiresAt(?\DateTimeImmutable $expiresAt): self
+    {
+        $this->passwordResetTokenExpiresAt = $expiresAt;
+
+        return $this;
+    }
+
+    public function isPasswordResetTokenValid(): bool
+    {
+        if ($this->passwordResetToken === null || $this->passwordResetTokenExpiresAt === null) {
+            return false;
+        }
+
+        return $this->passwordResetTokenExpiresAt > new \DateTimeImmutable();
+    }
+
+    public function generateEmailVerificationToken(): string
+    {
+        $this->emailVerificationToken = bin2hex(random_bytes(32));
+        $this->emailVerificationTokenExpiresAt = new \DateTimeImmutable('+24 hours');
+
+        return $this->emailVerificationToken;
+    }
+
+    public function generatePasswordResetToken(): string
+    {
+        $this->passwordResetToken = bin2hex(random_bytes(32));
+        $this->passwordResetTokenExpiresAt = new \DateTimeImmutable('+1 hour');
+
+        return $this->passwordResetToken;
+    }
+
+    public function clearEmailVerificationToken(): void
+    {
+        $this->emailVerificationToken = null;
+        $this->emailVerificationTokenExpiresAt = null;
+    }
+
+    public function clearPasswordResetToken(): void
+    {
+        $this->passwordResetToken = null;
+        $this->passwordResetTokenExpiresAt = null;
+    }
+
     public function getCreatedAt(): \DateTimeImmutable
     {
         return $this->createdAt;
     }
 
-    /**
-     * Returns update date.
-     *
-     * @return \DateTimeImmutable|null
-     */
     public function getUpdatedAt(): ?\DateTimeImmutable
     {
         return $this->updatedAt;
     }
 
-    /**
-     * Updates updatedAt field on entity update.
-     */
     #[ORM\PreUpdate]
     public function setUpdatedAtValue(): void
     {
         $this->updatedAt = new \DateTimeImmutable();
     }
 
-    /**
-     * Returns unique user identifier (email).
-     */
     public function getUserIdentifier(): string
     {
         return $this->email;
     }
 
-    /**
-     * Clears temporary user data.
-     */
     public function eraseCredentials(): void
     {
     }

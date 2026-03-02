@@ -5,6 +5,11 @@
 # https://symfony.com/doc/current/best_practices.html#use-parameters-for-application-configuration
 parameters:
     app.locale: '%env(APP_LOCALE)%'
+    app.jwt_secret: '%env(JWT_SECRET)%'
+    app.jwt_ttl: '%env(int:JWT_TTL)%'
+    app.refresh_token_ttl: '%env(int:REFRESH_TOKEN_TTL)%'
+    app.mailer_from: '%env(MAILER_FROM)%'
+    app.frontend_url: '%env(FRONTEND_URL)%'
 
 services:
     # default configuration for services in *this* file
@@ -27,6 +32,20 @@ services:
     App\Service\Translator:
         arguments:
             $locale: '%app.locale%'
+
+    App\Service\JwtService:
+        arguments:
+            $secret: '%app.jwt_secret%'
+            $ttl: '%app.jwt_ttl%'
+
+    App\Service\TokenService:
+        arguments:
+            $refreshTokenTtl: '%app.refresh_token_ttl%'
+
+    App\Service\EmailService:
+        arguments:
+            $fromEmail: '%app.mailer_from%'
+            $frontendUrl: '%app.frontend_url%'
 
     App\EventListener\ExceptionListener:
         tags:
