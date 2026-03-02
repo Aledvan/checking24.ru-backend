@@ -74,4 +74,26 @@ class SiteRepository extends ServiceEntityRepository
     {
         return $this->findOneBy(['id' => $id, 'user' => $user]);
     }
+
+    /**
+     * Finds all active sites that need to be checked.
+     *
+     * @return Site[]
+     */
+    public function findSitesNeedingCheck(): array
+    {
+        $sites = $this->findBy(['isActive' => true]);
+
+        return array_filter($sites, fn(Site $site) => $site->needsCheck());
+    }
+
+    /**
+     * Finds all active sites.
+     *
+     * @return Site[]
+     */
+    public function findAllActive(): array
+    {
+        return $this->findBy(['isActive' => true]);
+    }
 }

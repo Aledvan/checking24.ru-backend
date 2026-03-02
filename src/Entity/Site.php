@@ -42,6 +42,15 @@ class Site
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE, nullable: true)]
     private ?\DateTimeImmutable $lastCheckAt = null;
 
+    #[ORM\Column(type: Types::INTEGER)]
+    private int $checkInterval = 60;
+
+    #[ORM\Column(type: Types::INTEGER, nullable: true)]
+    private ?int $httpStatusCode = null;
+
+    #[ORM\Column(type: Types::BOOLEAN)]
+    private bool $isActive = true;
+
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE, nullable: true)]
     private ?\DateTimeImmutable $sslExpiresAt = null;
 
@@ -239,6 +248,98 @@ class Site
         $this->lastCheckAt = $lastCheckAt;
 
         return $this;
+    }
+
+    /**
+     * Gets check interval in seconds.
+     *
+     * @return int
+     */
+    public function getCheckInterval(): int
+    {
+        return $this->checkInterval;
+    }
+
+    /**
+     * Sets check interval in seconds.
+     *
+     * @param int $checkInterval Check interval in seconds
+     *
+     * @return self
+     */
+    public function setCheckInterval(int $checkInterval): self
+    {
+        $this->checkInterval = $checkInterval;
+
+        return $this;
+    }
+
+    /**
+     * Gets HTTP status code from last check.
+     *
+     * @return int|null
+     */
+    public function getHttpStatusCode(): ?int
+    {
+        return $this->httpStatusCode;
+    }
+
+    /**
+     * Sets HTTP status code.
+     *
+     * @param int|null $httpStatusCode HTTP status code
+     *
+     * @return self
+     */
+    public function setHttpStatusCode(?int $httpStatusCode): self
+    {
+        $this->httpStatusCode = $httpStatusCode;
+
+        return $this;
+    }
+
+    /**
+     * Checks if site monitoring is active.
+     *
+     * @return bool
+     */
+    public function isActive(): bool
+    {
+        return $this->isActive;
+    }
+
+    /**
+     * Sets site monitoring active status.
+     *
+     * @param bool $isActive Active status
+     *
+     * @return self
+     */
+    public function setIsActive(bool $isActive): self
+    {
+        $this->isActive = $isActive;
+
+        return $this;
+    }
+
+    /**
+     * Checks if site needs to be checked based on interval.
+     *
+     * @return bool
+     */
+    public function needsCheck(): bool
+    {
+        if (!$this->isActive) {
+            return false;
+        }
+
+        if ($this->lastCheckAt === null) {
+            return true;
+        }
+
+        $nextCheckAt = $this->lastCheckAt->modify("+{$this->checkInterval} seconds");
+
+        return $nextCheckAt <= new \DateTimeImmutable();
     }
 
     /**
