@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\DTO\Auth\ChangePasswordRequest;
 use App\DTO\Auth\LoginRequest;
 use App\DTO\Auth\RegisterRequest;
 use App\DTO\Auth\ResetPasswordRequest;
+use App\DTO\Auth\UpdateProfileRequest;
 use App\Entity\User;
 use App\Exception\AuthException;
 use App\Repository\UserRepository;
@@ -169,6 +171,38 @@ class AuthService
         }
 
         return $this->userRepository->find($payload['sub']);
+    }
+
+    public function updateProfile(User $user, UpdateProfileRequest $request): array
+    {
+        // Check if email is being changed and if it's already taken
+        if ($user->getEmail() !== $request->email) {
+            if ($this->userRepository->existsByEmail($request->email)) {
+                throw AuthException::userExists();
+            }
+            $user->setEmail($request->email);
+        }
+
+        $user->setName($request->name);
+        $this->userRepository->save($user, true);
+
+        return $this->createUserData($user);
+    }
+
+    public function changePassword(User $user, ChangePasswordRequest $request): bool
+    {
+        // Verify current password
+        if (!$this->passwordHasher->isPasswordValid($user, $request->currentPassword)) {
+            return false;
+        }
+
+        // Set new password
+        $hashedPassword = $this->passwordHasher->hashPassword($user, $request->newPassword);
+        $user->setPassword($hashedPassword);
+
+        $this->userRepository->save($user, true);
+
+        return true;
     }
 
     private function createUserData(User $user): array

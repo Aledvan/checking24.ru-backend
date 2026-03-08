@@ -1,0 +1,116 @@
+# Production Dockerfile for Symfony backend with PHP-FPM
+FROM php:8.4-fpm-alpine AS base
+
+# Install system dependencies
+RUN apk add --no-cache \
+    git \
+    curl \
+    libpng-dev \
+    oniguruma-dev \
+    libxml2-dev \
+    libzip-dev \
+    icu-dev \
+    zip \
+    unzip \
+    postgresql-dev \
+    rabbitmq-c-dev \
+    && docker-php-ext-install pdo_pgsql pgsql intl zip opcache \
+    && apk add --no-cache --virtual .build-deps autoconf g++ make \
+    && pecl install amqp \
+    && docker-php-ext-enable amqp \
+    && apk del .build-deps
+
+# Configure opcache for production
+RUN { \
+    echo 'opcache.memory_consumption=256'; \
+    echo 'opcache.interned_strings_buffer=16'; \
+    echo 'opcache.max_accelerated_files=20000'; \
+    echo 'opcache.revalidate_freq=0'; \
+    echo 'opcache.validate_timestamps=0'; \
+    echo 'opcache.enable_cli=1'; \
+    } > /usr/local/etc/php/conf.d/opcache-recommended.ini
+
+# Configure PHP-FPM
+RUN { \
+    echo '[global]'; \
+    echo 'error_log = /proc/self/fd/2'; \
+    echo '[www]'; \
+    echo 'listen = 9000'; \
+    echo 'access.log = /proc/self/fd/2'; \
+    echo 'catch_workers_output = yes'; \
+    echo 'decorate_workers_output = no'; \
+    } > /usr/local/etc/php-fpm.d/zz-docker.conf
+
+# PHP production settings
+RUN { \
+    echo 'expose_php = Off'; \
+    echo 'display_errors = Off'; \
+    echo 'display_startup_errors = Off'; \
+    echo 'log_errors = On'; \
+    echo 'error_log = /dev/stderr'; \
+    echo 'memory_limit = 256M'; \
+    echo 'max_execution_time = 60'; \
+    echo 'upload_max_filesize = 20M'; \
+    echo 'post_max_size = 25M'; \
+    } > /usr/local/etc/php/conf.d/production.ini
+
+# Install Composer
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
+# Set working directory
+WORKDIR /var/www/html
+
+# ---- Dependencies stage ----
+FROM base AS deps
+
+# Copy composer files first for better layer caching
+COPY composer.json composer.lock ./
+
+# Install dependencies (no dev dependencies for production)
+RUN composer install --no-dev --no-scripts --no-autoloader --prefer-dist
+
+# ---- Build stage ----
+FROM base AS build
+
+# Copy vendor from deps stage
+COPY --from=deps /var/www/html/vendor ./vendor
+
+# Copy application source
+COPY . .
+
+# Run composer scripts and optimize autoloader
+RUN composer dump-autoload --optimize --classmap-authoritative \
+    && composer run-script post-install-cmd --no-dev || true
+
+# Note: cache:clear skipped - will be done at runtime with DB access
+
+# Set proper permissions
+RUN chown -R www-data:www-data var/ \
+    && chmod -R 755 var/
+
+RUN echo 'APP_ENV=prod' > .env && chown www-data:www-data .env
+
+# ---- Production stage ----
+FROM base AS production
+
+# Copy application from build stage
+COPY --from=build /var/www/html /var/www/html
+
+# Copy entrypoint script
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+# Set proper ownership
+RUN chown -R www-data:www-data /var/www/html
+
+# Switch to non-root user
+USER www-data
+
+# Expose PHP-FPM port
+EXPOSE 9000
+
+# Use entrypoint for initialization
+ENTRYPOINT ["docker-entrypoint.sh"]
+
+# Start PHP-FPM in foreground
+CMD ["php-fpm", "-F"]
