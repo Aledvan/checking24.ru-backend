@@ -5,13 +5,6 @@ framework:
         transports:
             async:
                 dsn: '%env(MESSENGER_TRANSPORT_DSN)%'
-                options:
-                    exchange:
-                        name: checking24
-                        type: direct
-                    queues:
-                        site_checks:
-                            binding_keys: [site_check]
                 retry_strategy:
                     max_retries: 3
                     delay: 1000
@@ -23,3 +16,4 @@ framework:
 
         routing:
             'App\Message\CheckSiteMessage': async
+            'App\Message\DispatchSiteChecksMessage': async
