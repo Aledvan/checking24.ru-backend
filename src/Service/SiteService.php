@@ -9,7 +9,9 @@ use App\DTO\Site\UpdateSiteRequest;
 use App\Entity\Site;
 use App\Entity\User;
 use App\Entity\Warning;
+use App\Message\CheckSiteMessage;
 use App\Repository\SiteRepository;
+use Symfony\Component\Messenger\MessageBusInterface;
 
 class SiteService
 {
@@ -17,6 +19,7 @@ class SiteService
 
     public function __construct(
         private readonly SiteRepository $siteRepository,
+        private readonly MessageBusInterface $messageBus,
     ) {
     }
 
@@ -70,6 +73,9 @@ class SiteService
         $site->setUser($user);
 
         $this->siteRepository->save($site, true);
+
+        // Dispatch immediate check for the new site
+        $this->messageBus->dispatch(new CheckSiteMessage($site->getId()));
 
         return $this->formatSite($site);
     }
