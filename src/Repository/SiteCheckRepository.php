@@ -42,18 +42,23 @@ class SiteCheckRepository extends ServiceEntityRepository
     {
         $oneHourAgo = new \DateTimeImmutable('-1 hour');
 
-        $result = $this->createQueryBuilder('c')
-            ->select('AVG(c.responseTime) as avgResponseTime')
-            ->innerJoin('c.site', 's')
-            ->where('s.user = :user')
-            ->andWhere('c.checkedAt >= :oneHourAgo')
-            ->andWhere('c.isUp = true')
-            ->setParameter('user', $user)
-            ->setParameter('oneHourAgo', $oneHourAgo)
-            ->getQuery()
-            ->getSingleScalarResult();
+        $conn = $this->getEntityManager()->getConnection();
 
-        return $result !== null ? (float) $result : null;
+        $sql = "
+            SELECT AVG(c.response_time) as avg_response_time
+            FROM site_checks c
+            INNER JOIN sites s ON c.site_id = s.id
+            WHERE s.user_id = :userId
+            AND c.checked_at >= :oneHourAgo
+            AND c.is_up = 1
+        ";
+
+        $result = $conn->prepare($sql)->executeQuery([
+            'userId' => $user->getId(),
+            'oneHourAgo' => $oneHourAgo->format('Y-m-d H:i:s'),
+        ])->fetchOne();
+
+        return $result !== null && $result !== false ? (float) $result : null;
     }
 
     /**
@@ -63,18 +68,25 @@ class SiteCheckRepository extends ServiceEntityRepository
     {
         $startDate = new \DateTimeImmutable("-{$days} days");
 
-        $result = $this->createQueryBuilder('c')
-            ->select('COUNT(c.id) as totalChecks, SUM(CASE WHEN c.isUp = true THEN 1 ELSE 0 END) as upChecks')
-            ->innerJoin('c.site', 's')
-            ->where('s.user = :user')
-            ->andWhere('c.checkedAt >= :startDate')
-            ->setParameter('user', $user)
-            ->setParameter('startDate', $startDate)
-            ->getQuery()
-            ->getSingleResult();
+        $conn = $this->getEntityManager()->getConnection();
 
-        $totalChecks = (int) $result['totalChecks'];
-        $upChecks = (int) $result['upChecks'];
+        $sql = "
+            SELECT
+                COUNT(*) as total_checks,
+                SUM(CASE WHEN c.is_up = 1 THEN 1 ELSE 0 END) as up_checks
+            FROM site_checks c
+            INNER JOIN sites s ON c.site_id = s.id
+            WHERE s.user_id = :userId
+            AND c.checked_at >= :startDate
+        ";
+
+        $result = $conn->prepare($sql)->executeQuery([
+            'userId' => $user->getId(),
+            'startDate' => $startDate->format('Y-m-d H:i:s'),
+        ])->fetchAssociative();
+
+        $totalChecks = (int) ($result['total_checks'] ?? 0);
+        $upChecks = (int) ($result['up_checks'] ?? 0);
 
         if ($totalChecks === 0) {
             return 100.0;
