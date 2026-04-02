@@ -50,3 +50,20 @@ services:
     App\EventListener\ExceptionListener:
         tags:
             - { name: kernel.event_listener, event: kernel.exception }
+
+    # Monitoring services use dedicated logging channel
+    App\Service\SiteService:
+        arguments:
+            $logger: '@monolog.logger.monitoring'
+
+    App\Service\SiteCheckerService:
+        arguments:
+            $logger: '@monolog.logger.monitoring'
+
+    App\MessageHandler\CheckSiteMessageHandler:
+        arguments:
+            $logger: '@monolog.logger.monitoring'
+
+    App\MessageHandler\DispatchSiteChecksMessageHandler:
+        arguments:
+            $logger: '@monolog.logger.monitoring'

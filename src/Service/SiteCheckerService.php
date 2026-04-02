@@ -12,6 +12,7 @@ use App\Repository\IncidentRepository;
 use App\Repository\SiteCheckRepository;
 use App\Repository\SiteRepository;
 use App\Repository\WarningRepository;
+use Psr\Log\LoggerInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 class SiteCheckerService
@@ -26,6 +27,7 @@ class SiteCheckerService
         private readonly WarningRepository $warningRepository,
         private readonly SiteCheckRepository $siteCheckRepository,
         private readonly HttpClientInterface $httpClient,
+        private readonly LoggerInterface $logger,
     ) {
     }
 
@@ -38,6 +40,11 @@ class SiteCheckerService
      */
     public function checkSite(Site $site): void
     {
+        $this->logger->debug('Starting site check', [
+            'site_id' => $site->getId(),
+            'site_url' => $site->getUrl(),
+        ]);
+
         $startTime = microtime(true);
         $httpCode = null;
         $errorMessage = null;
@@ -53,6 +60,12 @@ class SiteCheckerService
         } catch (\Throwable $e) {
             $errorMessage = $e->getMessage();
             $httpCode = 0;
+
+            $this->logger->warning('Site check failed with error', [
+                'site_id' => $site->getId(),
+                'site_url' => $site->getUrl(),
+                'error' => $errorMessage,
+            ]);
         }
 
         $responseTime = (int) ((microtime(true) - $startTime) * 1000);
@@ -86,6 +99,15 @@ class SiteCheckerService
         $this->checkWarnings($site);
 
         $this->siteRepository->save($site, true);
+
+        $this->logger->info('Site check finished', [
+            'site_id' => $site->getId(),
+            'site_url' => $site->getUrl(),
+            'http_code' => $httpCode,
+            'response_time_ms' => $responseTime,
+            'status' => $newStatus,
+            'previous_status' => $previousStatus,
+        ]);
     }
 
     /**

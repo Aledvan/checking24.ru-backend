@@ -11,6 +11,7 @@ use App\Entity\User;
 use App\Entity\Warning;
 use App\Message\CheckSiteMessage;
 use App\Repository\SiteRepository;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\Messenger\MessageBusInterface;
 
 class SiteService
@@ -20,6 +21,7 @@ class SiteService
     public function __construct(
         private readonly SiteRepository $siteRepository,
         private readonly MessageBusInterface $messageBus,
+        private readonly LoggerInterface $logger,
     ) {
     }
 
@@ -73,6 +75,12 @@ class SiteService
         $site->setUser($user);
 
         $this->siteRepository->save($site, true);
+
+        $this->logger->info('New site created, dispatching initial check to queue', [
+            'site_id' => $site->getId(),
+            'site_url' => $site->getUrl(),
+            'user_id' => $user->getId(),
+        ]);
 
         // Dispatch immediate check for the new site
         $this->messageBus->dispatch(new CheckSiteMessage($site->getId()));
